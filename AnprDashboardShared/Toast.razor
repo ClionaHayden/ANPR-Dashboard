@@ -1,0 +1,40 @@
+@inject ToastService ToastService
+
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    @foreach (var toast in toasts)
+    {
+        <div class="toast show align-items-center text-bg-@toast.Level.ToString().ToLower() border-0 mb-2">
+            <div class="d-flex">
+                <div class="toast-body">
+                    @toast.Message
+                </div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" @onclick="() => RemoveToast(toast)"></button>
+                <p>Toast count: @toasts.Count</p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<ToastModel> toasts = new();
+
+    protected override void OnInitialized()
+    {
+        ToastService.OnShow += async toast =>
+        {
+            Console.WriteLine("✅ Show toast started");
+            toasts.Add(toast);
+            StateHasChanged();
+            await Task.Delay(toast.Duration);
+            toasts.Remove(toast);
+            StateHasChanged();
+        };
+        ToastService.OnChange += StateHasChanged;
+    }
+
+    private void RemoveToast(ToastModel toast)
+    {
+        toasts.Remove(toast);
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,57 @@
+﻿@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@using AnprDashboardShared
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu Theme="@theme" />
+    </div>
+
+    <main>
+        <Toast />
+        <div class="top-row ps-3 navbar navbar-expand-lg border-bottom shadow-sm d-flex align-items-center justify-content-end @(theme == "light" ? "bg-light navbar-light" : "bg-dark navbar-dark")">
+            <!-- Theme toggle button -->
+            <button class="btn btn-outline-secondary me-3" @onclick="ToggleTheme">
+                <i class="@themeIcon"></i>
+            </button>
+
+            <a class="@(theme == "light" ? "text-dark" : "text-white")" href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    // Theme logic
+    private string theme = "light";
+    private string themeIcon => theme == "light" ? "bi-moon-fill" : "bi-sun-fill";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var savedTheme = await JS.InvokeAsync<string>("localStorage.getItem", "theme");
+            if (!string.IsNullOrEmpty(savedTheme))
+            {
+                theme = savedTheme;
+                StateHasChanged();
+            }
+            await ApplyTheme();
+        }
+    }
+
+    private async Task ToggleTheme()
+    {
+        theme = theme == "light" ? "dark" : "light";
+        await JS.InvokeVoidAsync("localStorage.setItem", "theme", theme);
+        await ApplyTheme();
+    }
+
+    private async Task ApplyTheme()
+    {
+        await JS.InvokeVoidAsync("document.body.setAttribute", "data-bs-theme", theme);
+    }
+}

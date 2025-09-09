@@ -1,0 +1,190 @@
+@page "/history"
+@using Microsoft.AspNetCore.SignalR.Client
+@using System.Text
+@inject NavigationManager Navigation
+@inject HttpClient Http
+@inject ToastService ToastService
+
+<h3>Detection Dashboard</h3>
+
+<div class="container mt-4">
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+                <h5>Total Detections Today</h5>
+                <p class="fs-4 fw-bold">@totalToday</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+                <h5>Most Frequent Plate</h5>
+                <p class="fs-4 fw-bold">@mostFrequentPlate</p>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 shadow-sm">
+                <h5>Detections This Week</h5>
+                <p class="fs-4 fw-bold">@detectionsThisWeek</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h5>Detections Per Day</h5>
+            <canvas id="detectionsPerDay"></canvas>
+        </div>
+        <div class="col-md-6">
+            <h5>Top 5 Plates</h5>
+            <canvas id="topPlates"></canvas>
+        </div>
+    </div>
+
+    <!-- Search & History Table -->
+    <div class="row">
+        <div class="col-12">
+            <h4>Detection History</h4>
+            <input placeholder="Search Plate..." @bind="searchTerm" @bind:event="oninput" />
+            <button class="btn btn-primary btn-sm ms-2" @onclick="LoadHistory">Search</button>
+            <button class="btn btn-secondary btn-sm ms-2" @onclick="ExportHistoryCSV">Export CSV</button>
+            <button class="btn btn-secondary btn-sm ms-2" @onclick="ExportHistoryExcel">Export Excel</button>
+            <button class="btn btn-success" @onclick="TestToast">Test Toast</button>
+            <table class="table table-striped mt-3">
+                <thead>
+                    <tr>
+                        <th>Plate</th>
+                        <th>Timestamp</th>
+                        <th>Image</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in history)
+                    {
+                        <tr>
+                            <td>@item.Plate</td>
+                            <td>@item.Timestamp</td>
+                            <td>
+                                <img src="@item.FilePath" width="150" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private async Task TestToast()
+    {
+        await ToastService.ShowToast("Manual toast works!", ToastService.ToastLevel.Success);
+    }
+    private List<DetectionRecord> history = new();
+    private string searchTerm = "";
+
+    // Summary stats
+    private int totalToday;
+    private string mostFrequentPlate = "N/A";
+    private int detectionsThisWeek;
+    private HubConnection? hubConnection;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHistory();
+        LoadSummary();
+        await LoadCharts();
+    }
+
+    private async Task LoadHistory()
+    {
+        var url = string.IsNullOrWhiteSpace(searchTerm) 
+            ? "api/RecordHistory/history" 
+            : $"api/RecordHistory/history?search={searchTerm}";
+
+        history = await Http.GetFromJsonAsync<List<DetectionRecord>>(url) ?? new();
+    }
+
+    private void LoadSummary()
+    {
+        if (history.Count == 0) return;
+
+        totalToday = history.Count(h => h.Timestamp.Date == DateTime.Today);
+
+        mostFrequentPlate = history
+            .GroupBy(h => h.Plate)
+            .OrderByDescending(g => g.Count())
+            .FirstOrDefault()?.Key ?? "N/A";
+
+        var startOfWeek = DateTime.Today.AddDays(-(int)DateTime.Today.DayOfWeek);
+        detectionsThisWeek = history.Count(h => h.Timestamp.Date >= startOfWeek);
+    }
+
+    private async Task LoadCharts()
+    {
+        // Group detections per day
+        var detectionsPerDay = history
+            .GroupBy(h => h.Timestamp.Date)
+            .Select(g => new { Date = g.Key.ToShortDateString(), Count = g.Count() })
+            .OrderBy(x => x.Date)
+            .ToList();
+
+        // Top 5 plates
+        var topPlates = history
+            .GroupBy(h => h.Plate)
+            .OrderByDescending(g => g.Count())
+            .Take(5)
+            .Select(g => new { Plate = g.Key, Count = g.Count() })
+            .ToList();
+
+        // Render charts with JS interop
+        await JS.InvokeVoidAsync("renderBarChart", "detectionsPerDay", 
+            detectionsPerDay.Select(x => x.Date), detectionsPerDay.Select(x => x.Count));
+
+        await JS.InvokeVoidAsync("renderBarChart", "topPlates", 
+            topPlates.Select(x => x.Plate), topPlates.Select(x => x.Count));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+            await hubConnection.DisposeAsync();
+    }
+
+    private async Task ExportHistoryCSV()
+    {
+        if (!history.Any()) return;
+
+        // Build CSV content
+        var csv = new StringBuilder();
+        csv.AppendLine("Plate,Timestamp,FilePath");
+
+        foreach (var item in history)
+        {
+            csv.AppendLine($"{item.Plate},{item.Timestamp},{item.FilePath}");
+        }
+
+        var csvBytes = Encoding.UTF8.GetBytes(csv.ToString());
+        var base64 = Convert.ToBase64String(csvBytes);
+
+        await JS.InvokeVoidAsync("downloadFile", "detection_history.csv", base64);
+    }
+
+    private async Task ExportHistoryExcel()
+    {
+        // Only export what’s currently in `history` (filtered)
+        await JS.InvokeVoidAsync("exportExcel", history, "detection_history.xlsx");
+    }
+
+
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    public class DetectionRecord
+    {
+        public int Id { get; set; }
+        public string Plate { get; set; } = string.Empty;
+        public DateTime Timestamp { get; set; }
+        public string FilePath { get; set; } = string.Empty;
+    }
+}

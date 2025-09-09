@@ -1,0 +1,42 @@
+﻿@inject IJSRuntime JS
+
+<div class="top-row ps-3 navbar navbar-expand-lg border-bottom shadow-sm @NavBarClass">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">AnprDashboardWasm</a>
+        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link d-flex align-items-left" href="" Match="NavLinkMatch.All">
+                <span><i class="bi bi-house-door-fill"></i> Home</span>
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link d-flex align-items-left" href="upload">
+                <span><i class="bi bi-upload"></i> Upload</span>
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link d-flex align-items-left" href="history">
+                <span><i class="bi bi-bar-chart-line-fill"></i> History & Analytics</span>
+            </NavLink>
+        </div>
+    </nav>
+</div>
+
+@code {
+    [Parameter] public string Theme { get; set; } = "light";
+
+    private bool collapseNavMenu = true;
+
+    // Helper for navbar class based on theme
+    private string NavBarClass => Theme == "light" ? "bg-light navbar-light" : "bg-dark navbar-dark";
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu() => collapseNavMenu = !collapseNavMenu;
+}

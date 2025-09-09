@@ -1,0 +1,24 @@
+# Build output
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code settings
+.vscode/
+
+# Rider settings
+.idea/
+
+# SQLite database file (optional, if you don’t want it in repo)
+*.db
+
+# NPM / Node artifacts if using JS/Chart.js
+node_modules/
+
+# Logs
+*.log
